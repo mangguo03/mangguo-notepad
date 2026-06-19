@@ -1,6 +1,6 @@
 {
-  "name": "本地轻笔记",
-  "short_name": "轻笔记",
+  "name": "芒果记事本",
+  "short_name": "芒果记",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0f172a",
