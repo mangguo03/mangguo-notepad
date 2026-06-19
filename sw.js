@@ -1,4 +1,4 @@
-const CACHE_NAME = 'local-notes-v1';
+const CACHE_NAME = 'local-notes-v2';
 const ASSETS = [
   './',
   './index.html',
