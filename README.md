@@ -3,12 +3,12 @@
 
 ### 如果项目对你有帮助请给我点个star。
 
-<img width="1920" height="1040" alt="PixPin_2026-06-04_17-31-01" src="https://github.com/user-attachments/assets/982a17f0-aece-4df8-b133-c477544753c4" />
+<img width="1920" height="1040" alt="image" src="https://github.com/user-attachments/assets/803225bd-c913-4924-b78f-609f79fe146d" />
+
 
 ## 核心优势
   - 自托管部署：所有数据仅存储在您自己的服务器中
-  - 隐私保护：数据永远不会离开您的控制范围
-  - 实时云储存备份：数据自动保存在Cloudflare 后台
+  - 隐私保护：数据永远不会离开您的控制范
 
 # 主要功能介绍
 
@@ -19,84 +19,47 @@
 
 ## 强大的笔记功能
   - Markdown 编辑：实时编辑+预览为一体的 Markdown 编辑器，支持丰富的语法
-  - 分类管理：灵活的分类系统，构建清晰的知识结构
+  - 分类管理：灵活的日期分类系统，构建清晰的知识结构
   - 标签系统：多维度标签管理，快速定位相关笔记
   - 全文检索：强大的搜索功能，快速找到所需内容
-  - 数据导出：丰富的数据导出、导入格式，支持一键导出、导入markdonwn主+子文件夹
-
-## 账号限定功能
-  - 支持设置注册账号数量限定，部署一个就可注册不同账号给家人、朋友使用。
+  - 数据导出：丰富的数据导出、导入格式，支持一键导出、导入markdonwn格式
 
 ## 优秀的用户体验
   - 响应式设计：在桌面和移动设备上均可获得良好体验
   - 主题切换：支持深色/浅色主题切换
   - 多语言支持：中英文切换
   - 强大的图片管理功能：1、图片上锁不能做任何编辑/图片解锁才能缩放。
-                      2、图片上锁状态，双击或右击图片弹出下载复制等菜单，长按图片实现自由拖放、排版.
+                       2、图片上锁状态，双击或右击图片弹出下载复制等菜单，长按图片实现自由拖放、排版.
       
 # 快速部署指南
-目前只支持在 Cloudflare 平台通过Pages部署
+无需在第三方平台部署
 
 ## 步骤 1: Fock 本项目
 Fock 本项目，同时请帮忙点个 Star，万分感谢
 
-## 步骤 2: 创建 kv 数据库
-- 登入Cloudflare 平台 > 储存和数据库 > workers kv > 创建数据库，数据库名称为 My_Note 或随意
-- cf云端 KV 数据库存了你的笔记和分类数据
-<img width="1011" height="650" alt="PixPin_2026-06-04_21-47-53" src="https://github.com/user-attachments/assets/15188d5f-9c78-415e-99e5-a971bac2d8f9" />
+## 2：生成自己专属链接地址
+开启 GitHub Pages 魔法
+代码传上去后，它还只是一个代码仓库，现在我们要让它变成网页。
 
-## 步骤 3: 创建项目
-- 前往 Cloudflare 控制台 > Workers和Pages > 创建应用程序 > 想要部署 Pages？开始使用 > 连接你的 Git 仓库
+- 在当前仓库页面的顶部选项卡中，点击最右侧的 ⚙️ Settings（设置）。
+在左侧的导航栏里往下划，找到并点击 Pages。
 
-- <img width="807" height="476" alt="PixPin_2026-06-04_21-50-57" src="https://github.com/user-attachments/assets/13305cc7-f8ef-42dd-ac53-a7eda69ede77" />
+- 在打开的 GitHub Pages 设置页面中，找到 Build and deployment（构建和部署）板块：
+Source（来源）：保持默认的 Deploy from a branch。
+Branch（分支）：下面有个下拉菜单（默认写着 None），点开它，选择 main（或者 master）。
+旁边的文件夹选项保持默认的 /(root)。
+点击旁边的 Save（保存）按钮。
 
-<img width="780" height="451" alt="PixPin_2026-06-04_21-51-44" src="https://github.com/user-attachments/assets/2868bc77-5f7d-4738-83be-2075e25068e2" />
+- 获取并访问你的专属链接
+点击保存后，请耐心等待 1 到 2 分钟（GitHub 的服务器正在后台为你打包网页）。
+刷新一下这个 Pages 设置页面。
+页面顶部会出现一个带有 ✅ 绿钩的提示框，写着：
+"Your site is live at https://你的用户名.github.io/light-note/"
+点击这个链接，你就能在浏览器里看到你亲手做的云笔记了！
 
-<img width="843" height="502" alt="PixPin_2026-06-04_21-52-18" src="https://github.com/user-attachments/assets/f98696f0-926e-48ca-8f10-461a1dadbfb5" />
+- 以后无论你走到哪里，换了哪台电脑或手机，只要在浏览器输入这个链接，就能随时随地使用你的专属云笔记了！
 
-<img width="1193" height="887" alt="PixPin_2026-06-04_21-53-17" src="https://github.com/user-attachments/assets/96a3062d-4ac0-46bf-a5be-f74fd9ad5ccc" />
-
-## 步骤 4: 配置环境变量（在部署项目的控制台）
-1、前往 设置 > 绑定
-
-2、添加 kv 数据库：
-- 变量名: NOTE_KV (固定值，不能更改）
-- kv 数据库: My_Note (填你创建的名称）
-
-<img width="1623" height="664" alt="PixPin_2026-06-04_22-01-20" src="https://github.com/user-attachments/assets/93245ca2-962a-404d-98dc-dcaa63de101c" />
-
-## 步骤 5: 设置账号数量、自定义笔记名称
-1、前往 设置 > 变量与机密
-
-2、添加 变量：
-- 变量名称：MAX_USERS (固定值）
-- 值：限制注册账号数量由你随意设定
-
-<img width="1575" height="670" alt="PixPin_2026-06-04_22-02-36" src="https://github.com/user-attachments/assets/1fc5e6e0-c591-472c-b2fa-6d1124f88d00" />
-
-3、自定义名称
-- 变量名称：APP_NAME (固定值）
-- 值：笔记名称随意
-
-  <img width="398" height="383" alt="PixPin_2026-06-10_07-12-05" src="https://github.com/user-attachments/assets/3878e03d-da62-4d30-9154-0c5ccd2de372" />
-
-
-## 步骤 6：重置部署
-导航到 部署 > 所有部署，最新的部署... 重试部署
-
-## 步骤 7: 部署后操作
-- 访问你的站点: https://your-project.pages.dev
-
- <img width="944" height="369" alt="PixPin_2026-06-04_22-08-41" src="https://github.com/user-attachments/assets/d3a5055e-b994-47b7-8770-82f199004e85" />
-
-- 自定义域：设置自定义域
-
-<img width="719" height="406" alt="PixPin_2026-06-04_22-09-42" src="https://github.com/user-attachments/assets/d4c29827-7c4b-48fa-891f-1271043b3720" />
-
-- 完成设置: 按照安装向导操作
-- 开始使用: 创建你的第一个笔记！
-
-## 步骤 8: 安装桌面端
+## 步骤 3: 安装桌面端
 - 如图所示，电脑端在网址栏右边有安装图标
 - 手机端在网址栏右边点击三个点，会弹出多个选项，Google浏览器选择：添加到主屏幕。edge浏览器选择：添加至手机，手机端安装过程会慢一些，耐心等待几秒钟。
 
@@ -106,7 +69,7 @@ Fock 本项目，同时请帮忙点个 Star，万分感谢
 
 <img width="338" height="464" alt="PixPin_2026-06-05_11-14-13" src="https://github.com/user-attachments/assets/aa4105ee-76b7-4c24-8b72-4892e2ae872c" />
 
-## 步骤 9: 桌面端设置快捷呼出键
+## 步骤 4: 桌面端设置快捷呼出键
 - 零代码实现“一键呼出”的终极秘籍：
 - 电脑桌面，找到你的“云端笔记”软件图标，右键点击该图标，在弹出的菜单中选择 “属性”
 - 在 “快捷方式” 标签页 “快捷键”  这一栏（默认写着“无”）
