@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -175,7 +174,7 @@
 
                 <div class="px-2 py-1 flex flex-nowrap gap-2 select-none flex-shrink-0 z-10 w-full overflow-x-auto" style="scrollbar-width: none; -ms-overflow-style: none;">
                     <div id="editor-format-bar" class="flex items-center gap-1 w-max flex-nowrap pb-0.5">
-                        <select onchange="if(this.value){execCmd('fontSize', this.value);}" class="w-[80px] px-1.5 py-0.5 text-[11px] font-black text-fuchsia-600 dark:text-fuchsia-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600 outline-none cursor-pointer bg-slate-50 dark:bg-slate-700">
+                        <select onchange="changeFontSizeAndRestore(this)" class="w-[80px] px-1.5 py-0.5 text-[11px] font-black text-fuchsia-600 dark:text-fuchsia-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600 outline-none cursor-pointer bg-slate-50 dark:bg-slate-700">
                             <option value="" data-i18n="fmt-size">字号</option>
                             <option value="1" data-i18n="sz-1">1号 (10px)</option>
                             <option value="2" data-i18n="sz-2">2号 (13px)</option>
@@ -425,6 +424,8 @@
         let isDateDescending = true;
         let isLineNumberVisible = true;
         let currentMenuDateStr = null;
+        let savedEditorRange = null; // 💡 新增：用于记录正文的选中状态
+
 
         function getDateStr(timestamp) {
             const d = new Date(timestamp);
@@ -437,6 +438,18 @@
             initResizers();
             initRichTextInteractiveEvents();
             initSyncScroll();
+            // 💡 新增：只要鼠标在编辑器里选中文本，就立刻把范围存入备忘录
+            document.addEventListener('selectionchange', () => {
+                    const sel = window.getSelection();
+                    if (sel.rangeCount > 0) {
+                        const editor = document.getElementById('note-editor-richtext');
+                        const range = sel.getRangeAt(0);
+                        // 确保选中的确实是编辑器里面的内容
+                        if (editor && editor.contains(range.commonAncestorContainer)) {
+                            savedEditorRange = range.cloneRange();
+                        }
+                     }
+            });
             
             document.getElementById('note-title-input').addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') { e.preventDefault(); document.getElementById('note-editor-richtext').focus(); }
@@ -762,6 +775,27 @@
         // 7. 富文本核心、图片交互、拖拽缩放 (保留原版100%)
         // -----------------------------
         function execCmd(command, value = null) { document.execCommand(command, false, value); handleEditorInput(); }
+        // 💡 新增：修改字号并自动恢复焦点的高级函数
+        function changeFontSizeAndRestore(selectElem) {
+               const val = selectElem.value;
+               if (!val) return;
+
+               const editor = document.getElementById('note-editor-richtext');
+               editor.focus(); // 先强行把焦点拉回编辑器
+
+               // 如果备忘录里有之前选中的范围，立即恢复它的高亮状态
+               if (savedEditorRange) {
+                   const sel = window.getSelection();
+                   sel.removeAllRanges();
+                   sel.addRange(savedEditorRange);
+               }
+
+               // 恢复高亮后，再执行改变字号的命令
+               execCmd('fontSize', val);
+
+               // 改完后，把下拉框重置为默认的“字号”状态，方便下一次继续选择
+               selectElem.value = "";
+        }
         function clearAllFormat() { document.execCommand('removeFormat', false, null); document.execCommand('formatBlock', false, '<div>'); document.execCommand('backColor', false, 'transparent'); handleEditorInput(); }
         function wrapHTML(startTag, endTag) { const selection = window.getSelection(); if (!selection.rangeCount) return; execCmd('insertHTML', startTag + selection.toString() + endTag); }
 
