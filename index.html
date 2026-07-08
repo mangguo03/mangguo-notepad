@@ -107,8 +107,8 @@
                     <input type="text" id="left-search-input" oninput="renderDateTreeMenu()" placeholder="搜索关键字..." class="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-600 rounded-full py-1 pl-6 pr-2 text-[13px] font-bold outline-none focus:border-blue-500 transition-all shadow-inner">
                 </div>
                 <div class="flex items-center justify-between px-1">
-                    <span class="text-slate-700 font-black text-[14px]"><i class="fa-solid fa-calendar-days mr-1 text-emerald-500"></i>日期</span>
-                    <button onclick="toggleDateOrder()" id="order-btn" class="text-blue-600 dark:text-blue-400 font-black hover:underline flex items-center gap-1 text-[14px]"><i class="fa-solid fa-arrow-down-9-1"></i> 倒序</button>
+                    <span class="text-blue-600 dark:text-blue-400 font-black text-[16px]"><i class="fa-solid fa-calendar-days mr-1 text-emerald-500"></i>日期</span>
+                    <button onclick="toggleDateOrder()" id="order-btn" class="text-blue-600 dark:text-blue-400 font-black hover:underline flex items-center gap-1 text-[16px]"><i class="fa-solid fa-arrow-down-9-1 text-emerald-500"></i> 倒序</button>
                 </div>
             </div>
             <!-- 日期折叠与笔记树 -->
@@ -549,7 +549,7 @@
 
         function toggleDateOrder() {
             isDateDescending = !isDateDescending;
-            document.getElementById('order-btn').innerHTML = isDateDescending ? `<i class="fa-solid fa-arrow-down-9-1"></i> 倒序` : `<i class="fa-solid fa-arrow-up-1-9"></i> 正序`;
+            document.getElementById('order-btn').innerHTML = isDateDescending ? `<i class="fa-solid fa-arrow-down-9-1 text-emerald-500"></i> 倒序` : `<i class="fa-solid fa-arrow-up-1-9 text-emerald-500"></i> 正序`;
             renderDateTreeMenu();
         }
 
@@ -605,7 +605,7 @@
                 const shortDate = dStr.substring(2).replace(/-/g, '/'); 
                 
                 leftArea.innerHTML = `
-                    <i class="fa-solid ${caret} text-slate-400 w-2.5"></i>
+                    <i class="fa-solid ${caret} text-emerald-500 w-2.5"></i>
                     <span>${shortDate}</span>
                     ${meta.comment ? `<span class="text-[8px] font-normal text-amber-700 bg-amber-100 dark:bg-amber-900/50 dark:text-amber-300 px-0.5 rounded truncate max-w-[40px] ml-0.5 tracking-normal">${meta.comment}</span>` : ''}
                 `;
