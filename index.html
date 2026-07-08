@@ -637,13 +637,13 @@
                     groupMap[dStr].forEach(note => {
                         const isSelected = note.id === activeNoteId;
                         const item = document.createElement('div');
-                        item.className = `px-1 py-0.5 rounded-lg text-[16px] cursor-pointer truncate flex items-center justify-between group transition-all ${isSelected ? 'bg-blue-600 text-white font-black shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`;
+                        item.className = `px-1 py-0.5 rounded-lg text-[16px] font-bold cursor-pointer truncate flex items-center justify-between group transition-all ${isSelected ? 'bg-blue-600 text-white font-black shadow-sm' : 'text-slate-800 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`;
                         item.innerHTML = `
                             <div class="flex items-center gap-1 truncate flex-1 pr-1">
                                 <i class="fa-regular fa-file-lines opacity-60"></i>
                                 <span class="truncate">${(note.title && note.title.trim() !== '') ? note.title : (note.content ? note.content.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim().substring(0, 10) || '无标题' : '无标题')}</span>
                             </div>
-                            <button class="opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40 px-1 py-0.5 rounded transition-all flex items-center justify-center" onclick="event.stopPropagation(); deleteNote('${note.id}');"><i class="fa-solid fa-trash-can" style="font-size: 11px; transform: scale(0.85);"></i></button>
+                            <button class="opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40 px-1 py-0.5 rounded transition-all flex items-center justify-center" onclick="event.stopPropagation(); deleteNote('${note.id}');"><i class="fa-solid fa-trash-can" style="font-size: 14px; transform: scale(0.85);"></i></button>
                         `;
                         item.onclick = () => openNote(note.id);
                         
