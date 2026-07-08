@@ -106,9 +106,22 @@
                     <i class="fa-solid fa-magnifying-glass absolute left-2 text-slate-400 text-[14px]"></i>
                     <input type="text" id="left-search-input" oninput="renderDateTreeMenu()" placeholder="搜索关键字..." class="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-600 rounded-full py-1 pl-6 pr-2 text-[13px] font-bold outline-none focus:border-blue-500 transition-all shadow-inner">
                 </div>
+                
                 <div class="flex items-center justify-between px-1">
-                    <span class="text-blue-600 dark:text-blue-400 font-black text-[16px]"><i class="fa-solid fa-calendar-days mr-1 text-emerald-500"></i>日期</span>
-                    <button onclick="toggleDateOrder()" id="order-btn" class="text-blue-600 dark:text-blue-400 font-black hover:underline flex items-center gap-1 text-[16px]"><i class="fa-solid fa-arrow-down-9-1 text-emerald-500"></i> 倒序</button>
+                    <div class="flex items-center gap-3">
+                        <div class="relative flex items-center justify-center cursor-pointer" title="选择日期筛选">
+                            <i class="fa-solid fa-calendar-days text-emerald-500 text-[14px] hover:opacity-80 transition-opacity"></i>
+                            <input type="date" id="date-filter-input" onchange="applyDateFilter(this.value)" class="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer">
+                        </div>
+                        
+                        <button id="clear-filter-btn" onclick="clearDateFilter()" class="hidden text-slate-400 hover:text-red-500 transition-colors flex items-center" title="恢复显示全部日期">
+                            <i class="fa-solid fa-filter-circle-xmark text-[14px]"></i>
+                        </button>
+                    </div>
+
+                    <button onclick="toggleDateOrder()" id="order-btn" class="text-blue-600 dark:text-blue-400 hover:opacity-80 flex items-center justify-center p-1" title="切换排序">
+                        <i class="fa-solid fa-arrow-down-9-1 text-emerald-500 text-[14px]"></i>
+                    </button>
                 </div>
             </div>
             <!-- 日期折叠与笔记树 -->
@@ -438,6 +451,7 @@
         let isDateDescending = true;
         let isLineNumberVisible = true;
         let currentMenuDateStr = null;
+        let currentFilterDateStr = null; // 新增：用于记录当前要筛选的日期;
         let savedEditorRange = null; // 💡 新增：用于记录正文的选中状态
 
 
@@ -549,8 +563,28 @@
 
         function toggleDateOrder() {
             isDateDescending = !isDateDescending;
-            document.getElementById('order-btn').innerHTML = isDateDescending ? `<i class="fa-solid fa-arrow-down-9-1 text-emerald-500"></i> 倒序` : `<i class="fa-solid fa-arrow-up-1-9 text-emerald-500"></i> 正序`;
+            // 纯图标模式，取消中文显示
+            document.getElementById('order-btn').innerHTML = isDateDescending ? `<i class="fa-solid fa-arrow-down-9-1 text-emerald-500 text-[14px]"></i>` : `<i class="fa-solid fa-arrow-up-1-9 text-emerald-500 text-[14px]"></i>`;
             renderDateTreeMenu();
+        }
+
+        // 新增：应用日期筛选
+        function applyDateFilter(dateVal) {
+            if (!dateVal) {
+                clearDateFilter();
+                return;
+            }
+            currentFilterDateStr = dateVal; // dateVal 的原生格式恰好是 YYYY-MM-DD
+            document.getElementById('clear-filter-btn').classList.remove('hidden'); // 显示恢复按钮
+            renderDateTreeMenu(); // 触发重新渲染
+        }
+
+        // 新增：清除日期筛选，恢复显示全部
+        function clearDateFilter() {
+            currentFilterDateStr = null;
+            document.getElementById('date-filter-input').value = ''; // 清空原生输入框
+            document.getElementById('clear-filter-btn').classList.add('hidden'); // 隐藏恢复按钮
+            renderDateTreeMenu(); // 触发重新渲染
         }
 
         function renderDateTreeMenu() {
@@ -563,6 +597,10 @@
             let displayNotes = notes;
             if(finalKeyword) {
                 displayNotes = notes.filter(n => (n.title||'').toLowerCase().includes(finalKeyword) || (n.content||'').toLowerCase().includes(finalKeyword));
+            }
+            // 新增：如果有日期筛选条件，则只保留符合该日期的笔记
+            if (currentFilterDateStr) {
+                displayNotes = displayNotes.filter(n => n.dateStr === currentFilterDateStr);
             }
 
             let groupMap = {};
