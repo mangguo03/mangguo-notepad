@@ -107,7 +107,7 @@
                     <input type="text" id="left-search-input" oninput="renderDateTreeMenu()" placeholder="搜索关键字..." class="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-600 rounded-full py-1 pl-6 pr-2 text-[16px] font-bold outline-none focus:border-blue-500 transition-all shadow-inner">
                 </div>
                 <div class="flex items-center justify-between px-1">
-                    <span class="text-slate-700 font-black text-[16px]"><i class="fa-solid fa-calendar-days mr-1 text-emerald-500"></i>日期</span>
+                    <span class="text-slate-700 font-black text-[14px]"><i class="fa-solid fa-calendar-days mr-1 text-emerald-500"></i>日期</span>
                     <button onclick="toggleDateOrder()" id="order-btn" class="text-blue-600 dark:text-blue-400 font-black hover:underline flex items-center gap-1 text-[16px]"><i class="fa-solid fa-arrow-down-9-1"></i> 倒序</button>
                 </div>
             </div>
@@ -598,7 +598,7 @@
 
                 const leftArea = document.createElement('div');
                 // 1. 缩小一点点字号 (10px)，加紧字间距 (tracking-tighter)，缩小图标间距 (gap-0.5)
-                leftArea.className = "flex items-center gap-0.5 font-black text-[16px] text-slate-700 dark:text-slate-200 truncate flex-1 tracking-tighter";
+                leftArea.className = "flex items-center gap-0.5 font-black text-[14px] text-slate-700 dark:text-slate-200 truncate flex-1 tracking-tighter";
                 const caret = meta.collapsed ? "fa-caret-right" : "fa-caret-down";
                 
                 // 2. 将 2026-06-19 精简为 26/06/19 格式，省出大量空间
@@ -637,7 +637,7 @@
                     groupMap[dStr].forEach(note => {
                         const isSelected = note.id === activeNoteId;
                         const item = document.createElement('div');
-                        item.className = `px-1 py-0.5 rounded-lg text-[16px] font-bold cursor-pointer truncate flex items-center justify-between group transition-all ${isSelected ? 'bg-blue-600 text-white font-black shadow-sm' : 'text-slate-800 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`;
+                        item.className = `px-1 py-0.5 rounded-lg text-[14px] font-bold cursor-pointer truncate flex items-center justify-between group transition-all ${isSelected ? 'bg-blue-600 text-white font-black shadow-sm' : 'text-slate-800 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`;
                         item.innerHTML = `
                             <div class="flex items-center gap-1 truncate flex-1 pr-1">
                                 <i class="fa-regular fa-file-lines opacity-60"></i>
