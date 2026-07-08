@@ -1,71 +1,1123 @@
-// 每次修改了 index.html 的代码，就把这里的版本号改一下（推荐用日期+序号）
-const CACHE_NAME = 'local-notes-2026-07-08-02'; 
-
-// 核心清单：先把最重要的骨架文件塞进缓存
-const ASSETS = [
-    './',
-    './index.html',
-    './manifest.json',
-    './192.png',
-    './512.png'
-];
-
-// 1. 安装阶段：下载核心文件，并强制立即生效
-self.addEventListener('install', e => {
-    // 【融合优势】强制立即接管控制权，不等待旧版页面关闭
-    self.skipWaiting(); 
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>芒果记事本</title>
     
-    e.waitUntil(
-        caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
-    );
-});
+    <link rel="manifest" href="manifest.json">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' };
+    </script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://unpkg.com/turndown/dist/turndown.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css">
+    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+    
+    <style>
+        /* 💡 解决双标题栏：当作为独立桌面 PWA 运行时，自动隐藏网页内置的顶栏 */
+        @media (display-mode: standalone), (display-mode: window-controls-overlay) {
+            #app-header { display: none !important; }
+        }
+        body { font-size: 16px; }
+        
+        /* 严格锁定编辑器与行号的行高一致性 */
+        .md-preview { font-size: 16px; line-height: 24px !important; }
+        .line-numbers div { height: 24px; line-height: 24px; }
+        
+        .panel-large-text { font-size: 16px !important; font-weight: 800 !important; }
+        .sync-btn-font { font-size: 12px !important; font-weight: 900 !important; }
 
-// 2. 激活阶段：清理旧版本垃圾，并立即控制所有打开的页面
-self.addEventListener('activate', e => {
-    e.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    // 硬盘里的缓存名字和当前最新 CACHE_NAME 不一样，无情删掉
-                    if (cacheName !== CACHE_NAME) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        }).then(() => self.clients.claim()) // 【融合优势】激活后立刻控制当前所有标签页
-    );
-});
+        [draggable="true"] {
+            -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-user-drag: element; touch-action: pan-y; 
+        }
+        
+        .md-preview h1, .md-preview h1 *, .md-preview h1 font { font-size: 2.6rem !important; font-weight: 800 !important; line-height: 1.3 !important; }
+        .md-preview h2, .md-preview h2 *, .md-preview h2 font { font-size: 2.1rem !important; font-weight: 700 !important; line-height: 1.3 !important; }
+        .md-preview h3, .md-preview h3 *, .md-preview h3 font { font-size: 1.8rem !important; font-weight: 600 !important; line-height: 1.3 !important; }
+        .md-preview p, .md-preview div { margin-bottom: 0; }
 
-// 3. 拦截请求阶段：静态缓存优先 + 动态资源智能收集
-self.addEventListener('fetch', e => {
-    // 忽略非 GET 请求（比如不拦截 POST 提交数据）
-    if (e.request.method !== 'GET') return;
+        .md-preview font[size="1"] { font-size: 10px !important; }
+        .md-preview font[size="2"] { font-size: 13px !important; }
+        .md-preview font[size="3"] { font-size: 16px !important; }
+        .md-preview font[size="4"] { font-size: 18px !important; }
+        .md-preview font[size="5"] { font-size: 24px !important; }
+        .md-preview font[size="6"] { font-size: 32px !important; }
+        .md-preview font[size="7"] { font-size: 48px !important; }
+        
+        .md-preview ul { list-style-type: disc !important; margin-left: 1.5rem !important; padding-left: 0.5rem; margin-bottom: 0.5rem; }
+        .md-preview ol { list-style-type: decimal !important; margin-left: 1.5rem !important; padding-left: 0.5rem; margin-bottom: 0.5rem; }
+        .md-preview li { display: list-item !important; margin-bottom: 0.25rem; }
 
-    e.respondWith(
-        caches.match(e.request).then(cachedResponse => {
-            // 💡 策略一：如果缓存里有（不管是写死的还是后来抓的），直接断网秒开！
-            if (cachedResponse) {
-                return cachedResponse;
+        .md-preview code { background-color: #fee2e2; padding: 0.2em 0.5em; border-radius: 6px; font-size: 95%; font-family: monospace; color: #be185d; }
+        .md-preview pre { background-color: #1e293b; color: #f8fafc; padding: 1.5rem; border-radius: 10px; overflow-x: auto; margin-bottom: 1.5rem; line-height: 1.5 !important; }
+        .md-preview pre code { background-color: transparent; color: inherit; padding: 0; font-size: 17px; }
+        .md-preview a { color: #2563eb; text-decoration: underline; font-weight: bold; cursor: pointer; transition: all 0.2; }
+        .md-preview a:hover { color: #1e40af; text-decoration-style: dashed; }
+
+        .custom-img-wrapper { position: relative; display: inline-block; margin: 14px 0; vertical-align: bottom; max-width: 100%; z-index: 1; }
+        .custom-img-wrapper img { max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: block; transition: outline 0.2s, box-shadow 0.2s; }
+        .custom-img-wrapper:not(.locked) img { outline: 3px dashed #eab308; outline-offset: 2px; cursor: nwse-resize; }
+        .custom-img-wrapper.locked img { user-select: none; -webkit-user-drag: none; outline: none !important; box-shadow: none !important; }
+        .custom-img-wrapper.locked::after { content: ''; position: absolute; left: 0; top: 0; right: 0; bottom: 0; z-index: 10; cursor: grab; }
+        .custom-img-wrapper.locked:active::after { cursor: grabbing; }
+        .img-lock-btn { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background-color: #22c55e; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 20; box-shadow: 0 2px 5px rgba(0,0,0,0.2); font-size: 10px; transition: all 0.2s; }
+        .img-lock-btn.locked { background-color: #ef4444; }
+
+        [contenteditable]:empty:before { content: attr(placeholder); color: #cbd5e1; pointer-events: none; display: block; }
+        .resizer { width: 6px; cursor: col-resize; background-color: #e2e8f0; transition: background-color 0.2; position: relative; z-index: 10; }
+        .resizer:hover, .resizer.resizing { background-color: #2563eb; width: 6px; }
+        .no-select { user-select: none; -webkit-user-select: none; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .line-numbers { font-family: monospace; text-align: right; padding-right: 8px; color: #94a3b8; user-select: none; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+</head>
+<body class="bg-slate-900 font-sans h-screen flex flex-col overflow-hidden text-slate-800 dark:bg-slate-950 dark:text-slate-200 transition-colors duration-300">
+
+    <!-- 1. 置顶栏：默认打开新记事本 -->
+    <header id="app-header" class="bg-slate-800 text-slate-200 py-1.5 px-4 flex items-center justify-between select-none border-b border-slate-700 relative z-[70]" style="-webkit-app-region: drag;">
+        <div class="flex items-center gap-1.5 pointer-events-none" style="-webkit-app-region: no-drag;">
+            <i class="fa-solid fa-feather-pointed" style="color: rgb(23, 139, 5);"></i>
+            <span class="font-black tracking-wide text-sm bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-300" data-i18n="app-title">芒果记</span>
+        </div>
+    </header>
+
+    <input type="file" id="import-md-input" accept=".md" class="hidden" onchange="handleImportFile(event, 'md')">
+    <input type="file" id="import-txt-input" accept=".txt" class="hidden" onchange="handleImportFile(event, 'txt')">
+
+    <div id="workspace-container" class="flex flex-1 overflow-hidden w-full bg-slate-200 dark:bg-slate-900 transition-colors duration-300">
+        
+        <!-- 2. 左侧栏：日期归档列表 -->
+        <aside id="left-panel" class="bg-slate-50 dark:bg-slate-800 dark:border-slate-700 flex flex-col flex-shrink-0 overflow-hidden border-r border-slate-200 panel-large-text transition-all relative z-50 h-full" style="width: 180px; min-width: 110px; max-width: 200px;">
+            <!-- 顶部关键字搜索与排序 -->
+            <div class="p-2 border-b border-slate-200 dark:border-slate-700 space-y-2 flex-shrink-0 bg-slate-100/60 dark:bg-slate-800/60">
+                <div class="relative flex items-center">
+                    <i class="fa-solid fa-magnifying-glass absolute left-2 text-slate-400 text-[14px]"></i>
+                    <input type="text" id="left-search-input" oninput="renderDateTreeMenu()" placeholder="搜索关键字..." class="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-600 rounded-full py-1 pl-6 pr-2 text-[16px] font-bold outline-none focus:border-blue-500 transition-all shadow-inner">
+                </div>
+                <div class="flex items-center justify-between px-1">
+                    <span class="text-slate-700 font-black text-[16px]"><i class="fa-solid fa-calendar-days mr-1 text-emerald-500"></i>日期</span>
+                    <button onclick="toggleDateOrder()" id="order-btn" class="text-blue-600 dark:text-blue-400 font-black hover:underline flex items-center gap-1 text-[16px]"><i class="fa-solid fa-arrow-down-9-1"></i> 倒序</button>
+                </div>
+            </div>
+            <!-- 日期折叠与笔记树 -->
+            <div id="date-tree-container" class="flex-1 overflow-y-auto p-1.5 space-y-1 select-none"></div>
+        </aside>
+        
+        <div id="resizer-left" class="resizer hidden md:block dark:bg-slate-700"></div>
+        
+        <!-- 3. 中间核心编辑面板 -->
+        <section id="middle-panel" class="bg-white dark:bg-slate-950 flex flex-col flex-1 overflow-hidden min-w-0 transition-colors duration-300 relative">
+            
+            <!-- 一键呼出侧栏的固定把手 -->
+            <div id="float-toggle-handle" onclick="toggleLeftPanel()" class="absolute left-0 top-1/2 -translate-y-1/2 w-3.5 h-20 bg-gradient-to-b from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white cursor-pointer flex items-center justify-center rounded-r-xl shadow-lg z-[60] transition-all border border-l-0 border-orange-400 opacity-90 hover:opacity-100" title="展开/收起侧栏">
+                <i id="sidebar-float-icon" class="fa-solid fa-caret-left text-[11px] transition-transform duration-300"></i>
+            </div>
+
+            <!-- 原版一模一样的顶部工具栏排版 -->
+            <div class="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex flex-col select-none flex-shrink-0 z-10 shadow-sm w-full min-w-0">
+                
+                <div class="px-2 py-1.5 flex flex-nowrap items-center justify-between gap-1 border-b border-slate-200 dark:border-slate-800 relative z-[80] overflow-x-auto w-full" style="scrollbar-width: none; -ms-overflow-style: none;">
+                    
+                    <div class="flex items-center gap-1 flex-nowrap flex-shrink-0">
+                        <div class="flex items-center justify-center bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded shadow-sm mr-1">
+                              <i class="fa-solid fa-pen-nib text-[11px]"></i>
+                              </div>
+                        <button onclick="createNewNoteByDate(getDateStr(Date.now()))" class="px-1.5 py-0.5 text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm flex items-center gap-1"><i class="fa-solid fa-plus"></i> <span>新建</span></button>
+                        
+                        <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-600 mx-0.5"></div>
+                        
+                        <button onclick="toggleFindReplacePanel()" class="px-2 py-0.5 ml-1 text-[11px] font-bold bg-blue-50 hover:bg-blue-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-slate-700 rounded shadow-sm flex items-center gap-1" title="查找与替换 (Ctrl+F)"><i class="fa-solid fa-magnifying-glass"></i> 查找</button>
+                        <button id="wrap-toggle-btn" onclick="toggleWordWrap()" class="px-2 py-0.5 ml-1 text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-slate-700 rounded shadow-sm flex items-center gap-1 transition-all" title="开启/关闭自动换行"><i class="fa-solid fa-text-width"></i> 换行</button>
+                        
+                        <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-600 mx-0.5"></div> 
+                        <button onmousedown="event.preventDefault();" onclick="execCmd('undo')" class="px-2 py-0.5 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded shadow-sm transition-all" title="撤销 (Ctrl+Z)" data-i18n-title="title-undo">
+                            <i class="fa-solid fa-undo drop-shadow-sm" style="color: #eab308 !important; fill: #eab308 !important;"></i>
+                        </button>
+                        <button onmousedown="event.preventDefault();" onclick="execCmd('redo')" class="px-2 py-0.5 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded shadow-sm transition-all" title="重做 (Ctrl+Y)" data-i18n-title="title-redo">
+                            <i class="fa-solid fa-redo drop-shadow-sm" style="color: #eab308 !important; fill: #eab308 !important;"></i>
+                        </button>
+                    </div> 
+                        <div class="flex items-center justify-end flex-nowrap gap-2 ml-auto flex-shrink-0">
+                        <button onclick="toggleRightPanel()" title="历史记录" data-i18n-title="title-history" class="bg-red-600 hover:bg-red-700 text-white font-black px-2 py-1 rounded text-[11px] transition-all shadow-sm flex items-center justify-center border border-red-700 whitespace-nowrap flex-shrink-0">
+                            <i class="fa-solid fa-clock-rotate-left pointer-events-none"></i>
+                        </button>
+                        
+                        <div class="relative flex-shrink-0">
+                            <button onclick="toggleSettingsMenu(event)" title="系统设置" data-i18n-title="title-settings" class="bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-black px-2 py-1 rounded text-[11px] transition-all shadow-sm flex items-center justify-center border border-slate-700 whitespace-nowrap">
+                                <i class="fa-solid fa-gear pointer-events-none bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent"></i>
+                            </button>
+                            <div id="settings-dropdown" class="hidden fixed mt-1 w-45 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col py-1 z-[10000] right-0">
+                                <button onclick="toggleLanguage(); document.getElementById('settings-dropdown').classList.add('hidden');" class="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 font-bold transition-colors">
+                                    <i class="fa-solid fa-language text-lg text-blue-500 w-4 text-center"></i> <span data-i18n="lang-toggle">切换语言 / EN</span>
+                                </button>
+                                <div class="h-px bg-slate-100 dark:bg-slate-700 w-full my-1"></div>
+                                <div class="px-4 py-1.5 text-[11px] text-slate-400 dark:text-slate-500 font-black tracking-widest uppercase" data-i18n="theme-title">主题模式</div>
+                                <button onclick="setTheme('light'); document.getElementById('settings-dropdown').classList.add('hidden');" class="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 font-bold transition-colors">
+                                    <i class="fa-solid fa-sun text-yellow-500 w-4 text-center"></i> <span data-i18n="theme-light">浅色</span>
+                                </button>
+                                <button onclick="setTheme('dark'); document.getElementById('settings-dropdown').classList.add('hidden');" class="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 font-bold transition-colors">
+                                    <i class="fa-solid fa-moon text-blue-400 w-4 text-center"></i> <span data-i18n="theme-dark">深色</span>
+                                </button>
+                                <div class="h-px bg-slate-100 dark:bg-slate-700 w-full my-1"></div>
+                                <button onclick="showAboutModal(); document.getElementById('settings-dropdown').classList.add('hidden');" class="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-3 font-bold transition-colors">
+                                    <i class="fa-solid fa-circle-info text-blue-400 w-4 text-center"></i> <span data-i18n="about-soft">关于软件</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-2 py-1 flex flex-nowrap gap-2 select-none flex-shrink-0 z-10 w-full overflow-x-auto" style="scrollbar-width: none; -ms-overflow-style: none;">
+                    <div id="editor-format-bar" class="flex items-center gap-1 w-max flex-nowrap pb-0.5">
+                        <select onchange="changeFontSizeAndRestore(this)" class="w-[80px] px-1.5 py-0.5 text-[11px] font-black text-fuchsia-600 dark:text-fuchsia-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600 outline-none cursor-pointer bg-slate-50 dark:bg-slate-700">
+                            <option value="" data-i18n="fmt-size">字号</option>
+                            <option value="1" data-i18n="sz-1">1号 (10px)</option>
+                            <option value="2" data-i18n="sz-2">2号 (13px)</option>
+                            <option value="3" data-i18n="sz-3">3号 (16px)</option>
+                            <option value="4" data-i18n="sz-4">4号 (18px)</option>
+                            <option value="5" data-i18n="sz-5">5号 (24px)</option>
+                            <option value="6" data-i18n="sz-6">6号 (32px)</option>
+                            <option value="7" data-i18n="sz-7">7号 (48px)</option>
+                        </select>
+                        <select onchange="if(this.value){execCmd('formatBlock', this.value);}" class="w-[80px] px-1.5 py-0.5 text-[11px] font-black text-violet-600 dark:text-violet-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600 outline-none cursor-pointer bg-slate-50 dark:bg-slate-700">
+                            <option value="" data-i18n="fmt-heading">标题</option>
+                            <option value="<H1>" data-i18n="h1">一级标题</option>
+                            <option value="<H2>" data-i18n="h2">二级标题</option>
+                            <option value="<H3>" data-i18n="h3">三级标题</option>
+                            <option value="<P>" data-i18n="p">正文</option>
+                        </select>
+                        <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-600 mx-0.5"></div>
+                        <button onmousedown="event.preventDefault();" onclick="execCmd('insertUnorderedList')" class="px-2 py-0.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600" title="无序列表" data-i18n-title="title-ul"><i class="fa-solid fa-list-ul text-orange-500"></i></button>
+                        <button onmousedown="event.preventDefault();" onclick="execCmd('insertOrderedList')" class="px-2 py-0.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600" title="有序列表" data-i18n-title="title-ol"><i class="fa-solid fa-list-ol text-amber-500"></i></button>
+                        <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-600 mx-0.5"></div>
+                        <button onmousedown="event.preventDefault();" onclick="execCmd('bold')" class="px-2 py-0.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600"><i class="fa-solid fa-bold text-blue-600 dark:text-blue-400"></i></button>
+                        <button onmousedown="event.preventDefault();" onclick="execCmd('underline')" class="px-2 py-0.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600"><i class="fa-solid fa-underline text-indigo-500"></i></button>
+                        <div class="relative flex-shrink-0">
+                            <button onclick="toggleColorMenu(event)" title="字体颜色" class="px-2 py-0.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600 flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-palette pointer-events-none bg-gradient-to-tr from-red-500 via-yellow-500 to-blue-500 bg-clip-text text-transparent"></i>
+                                <i class="fa-solid fa-chevron-down text-[8px] opacity-70 pointer-events-none"></i>
+                            </button>
+                            <div id="color-dropdown-menu" class="hidden fixed mt-1 w-20 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 grid grid-cols-2 p-1.5 gap-1.5 z-[11000]">
+                                <button onmousedown="event.preventDefault();" onclick="execCmd('foreColor', '#000000'); document.getElementById('color-dropdown-menu').classList.add('hidden');" class="py-0.5 text-[11px] font-bold text-white hover:opacity-80 rounded shadow-sm flex items-center justify-center" style="background-color: #0f172a;" data-i18n="color-black">黑</button>
+                                <button onmousedown="event.preventDefault();" onclick="execCmd('foreColor', '#ffffff'); document.getElementById('color-dropdown-menu').classList.add('hidden');" class="py-0.5 text-[11px] font-bold text-slate-800 hover:opacity-80 rounded shadow-sm border border-slate-300 flex items-center justify-center" style="background-color: #ffffff;" data-i18n="color-white">白</button>
+                                <button onmousedown="event.preventDefault();" onclick="execCmd('foreColor', '#ef4444'); document.getElementById('color-dropdown-menu').classList.add('hidden');" class="py-0.5 text-[11px] font-bold text-white hover:opacity-80 rounded shadow-sm flex items-center justify-center" style="background-color: #ef4444;" data-i18n="color-red">红</button>
+                                <button onmousedown="event.preventDefault();" onclick="execCmd('foreColor', '#eab308'); document.getElementById('color-dropdown-menu').classList.add('hidden');" class="py-0.5 text-[11px] font-bold text-white hover:opacity-80 rounded shadow-sm flex items-center justify-center" style="background-color: #eab308;" data-i18n="color-yellow">黄</button>
+                                <button onmousedown="event.preventDefault();" onclick="execCmd('foreColor', '#3b82f6'); document.getElementById('color-dropdown-menu').classList.add('hidden');" class="py-0.5 text-[11px] font-bold text-white hover:opacity-80 rounded shadow-sm flex items-center justify-center" style="background-color: #3b82f6;" data-i18n="color-blue">蓝</button>
+                                <button onmousedown="event.preventDefault();" onclick="execCmd('foreColor', '#22c55e'); document.getElementById('color-dropdown-menu').classList.add('hidden');" class="py-0.5 text-[11px] font-bold text-white hover:opacity-80 rounded shadow-sm flex items-center justify-center" style="background-color: #22c55e;" data-i18n="color-green">绿</button>
+                            </div>
+                        </div>
+                        <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-600 mx-0.5"></div>
+                        <button onmousedown="event.preventDefault();" onclick="wrapHTML('<code>', '</code>')" class="px-2 py-0.5 text-[11px] font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600" title="代码块" data-i18n-title="title-code"><i class="fa-solid fa-code text-rose-500"></i></button>
+                        <button onmousedown="event.preventDefault();" onclick="clearAllFormat()" class="px-2 py-0.5 text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 rounded border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700" title="清除格式" data-i18n-title="title-clear"><i class="fa-solid fa-eraser bg-gradient-to-tr from-pink-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent"></i></button>
+                        <button onmousedown="event.preventDefault(); document.getElementById('local-img-input').click()" class="px-2 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-slate-700 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-slate-700" title="插入图片" data-i18n-title="title-img"><span data-i18n="fmt-img">图</span></button>
+                        <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-600 mx-0.5"></div>
+                        <div class="relative flex-shrink-0">
+                            <button onclick="toggleAlignMenu(event)" title="对齐方式" data-i18n-title="title-align-mode" class="px-2 py-0.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600 flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-align-left pointer-events-none text-cyan-600 dark:text-cyan-400"></i>
+                                <i class="fa-solid fa-chevron-down text-[8px] opacity-70 pointer-events-none"></i>
+                            </button>
+                            <div id="align-dropdown-menu" class="hidden fixed mt-1 w-28 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col py-1 z-[11000] text-xs font-bold">
+                                <button onmousedown="event.preventDefault();" onclick="execCmd('justifyLeft'); document.getElementById('align-dropdown-menu').classList.add('hidden');" class="w-full text-left px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"><i class="fa-solid fa-align-left w-4 text-center text-blue-500"></i> <span data-i18n="title-align-left">左对齐</span></button>
+                                <button onmousedown="event.preventDefault();" onclick="execCmd('justifyCenter'); document.getElementById('align-dropdown-menu').classList.add('hidden');" class="w-full text-left px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"><i class="fa-solid fa-align-center w-4 text-center text-blue-500"></i> <span data-i18n="title-align-center">居中对齐</span></button>
+                                <button onmousedown="event.preventDefault();" onclick="execCmd('justifyRight'); document.getElementById('align-dropdown-menu').classList.add('hidden');" class="w-full text-left px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"><i class="fa-solid fa-align-right w-4 text-center text-blue-500"></i> <span data-i18n="title-align-right">右对齐</span></button>
+                                <button onmousedown="event.preventDefault();" onclick="execCmd('justifyFull'); document.getElementById('align-dropdown-menu').classList.add('hidden');" class="w-full text-left px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"><i class="fa-solid fa-align-justify w-4 text-center text-blue-500"></i> <span data-i18n="title-align-full">两端对齐</span></button>
+                            </div>
+                        </div>
+                        <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-600 mx-0.5"></div>
+                        <button onmousedown="event.preventDefault();" onclick="execCmd('outdent')" class="px-2 py-0.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600" title="减少缩进" data-i18n-title="title-outdent"><i class="fa-solid fa-outdent text-teal-500"></i></button>
+                        <button onmousedown="event.preventDefault();" onclick="execCmd('indent')" class="px-2 py-0.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded border border-slate-200 dark:border-slate-600" title="增加缩进" data-i18n-title="title-indent"><i class="fa-solid fa-indent text-teal-500"></i></button>
+                    </div>
+                    <input type="file" id="local-img-input" accept="image/*" multiple class="hidden" onchange="handleLocalImageUpload(event)">
+                </div>
+
+                <div id="find-replace-bar" class="hidden flex items-center bg-slate-200/80 dark:bg-slate-800 border-t border-slate-300 dark:border-slate-700 p-1 text-[11px] gap-1.5 shadow-inner">
+                    <input type="text" id="find-text-input" placeholder="查找文本..." class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 px-2 py-0.5 rounded outline-none w-36 focus:border-blue-500 font-bold">
+                    <input type="text" id="replace-text-input" placeholder="替换为..." class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 px-2 py-0.5 rounded outline-none w-36 focus:border-emerald-500 font-bold">
+                    <button onclick="executeFindText()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-0.5 rounded font-black">查找</button>
+                    <button onclick="executeReplaceText(false)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-0.5 rounded font-black">替换</button>
+                    <button onclick="executeReplaceText(true)" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-0.5 rounded font-black">全部替换</button>
+                    <button onclick="toggleFindReplacePanel()" class="ml-auto text-slate-400 hover:text-red-500 px-2"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+
+            <div class="flex-1 flex overflow-hidden w-full relative bg-slate-50 dark:bg-slate-950">
+                
+                <div id="line-counter-rail" class="w-8 flex flex-col items-stretch flex-shrink-0 bg-slate-100/60 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 text-[11px] text-slate-400 font-mono select-none overflow-hidden transition-all duration-200">
+                    <div onclick="toggleLineVisibility()" class="h-8 border-b border-slate-200 dark:border-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer flex items-center justify-center text-emerald-500 dark:text-emerald-400" title="开启/关闭行数显示">
+                        <i id="line-toggle-icon" class="fa-solid fa-eye text-[12px]"></i>
+                    </div>
+                    <div id="line-numbers-container" class="line-numbers pt-[32px] space-y-0 flex-1 overflow-hidden">
+                        <div>1</div>
+                    </div>
+                </div>
+
+                <div id="editor-scroll-container" class="flex-1 flex flex-col p-5 overflow-y-auto w-full relative bg-white dark:bg-slate-950">
+                    <input id="note-title-input" oninput="handleEditorInput()" type="text" placeholder="此处输入新随笔标题..." data-i18n-placeholder="note-title-placeholder" class="w-full font-black text-xl border-0 border-b-2 border-dashed border-slate-300 dark:border-slate-700 outline-none pb-1 mb-2 text-slate-900 dark:text-slate-100 placeholder-slate-300 dark:placeholder-slate-600 bg-transparent flex-shrink-0">
+                    
+                    <div id="note-editor-richtext" contenteditable="true" oninput="handleEditorInput()" placeholder="在这里直接排版书写，试试输入 # 加空格..." data-i18n-placeholder="note-content-placeholder" class="md-preview w-full flex-1 outline-none text-slate-800 dark:text-slate-200 break-words"></div>
+                </div>
+            </div>
+        </section>
+
+        <div id="resizer-right" class="resizer hidden dark:bg-slate-700"></div>
+
+        <!-- 4. 右侧历史记录/回收站 -->
+        <aside id="right-panel" class="hidden bg-slate-50 dark:bg-slate-800 dark:border-slate-700 flex flex-col flex-shrink-0 overflow-hidden border-l border-slate-200 panel-large-text" style="width: 170px; min-width: 130px; max-width: 480px;">
+            <div class="p-2 bg-slate-800 dark:bg-slate-900 text-white flex flex-col gap-1.5 flex-shrink-0 shadow-md">
+                <span class="sync-btn-font tracking-wide flex items-center gap-1.5 text-slate-200 text-lg">
+                    <i class="fa-solid fa-dumpster-fire text-red-500"></i> <span data-i18n="trash-title">回收站</span> (<span id="trash-count-badge">0</span>)
+                </span>
+                <div class="flex items-center gap-2">
+                    <button onclick="recoverAllTrash()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-0.5 rounded-xl text-xs transition-all shadow border border-emerald-500 flex items-center justify-center gap-1"><i class="fa-solid fa-trash-arrow-up"></i> <span data-i18n="btn-recover">恢复</span></button>
+                    <button onclick="clearTrashCompletely()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-black py-0.5 rounded-xl text-xs transition-all shadow border border-red-500 flex items-center justify-center gap-1"><i class="fa-solid fa-fire"></i> <span data-i18n="btn-empty">清空</span></button>
+                </div>
+            </div>
+            <div id="right-trash-flow" class="flex-1 overflow-y-auto p-2 space-y-2 bg-slate-100/50 dark:bg-slate-800/50"></div>
+        </aside>
+    </div>
+
+    <div id="date-context-menu" class="hidden fixed bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl py-1.5 w-40 z-[999] text-xs font-bold text-slate-700 dark:text-slate-200 select-none">
+        <button onclick="menuAddDateComment()" class="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"><i class="fa-regular fa-comment text-blue-500"></i> <span>添加备注</span></button>
+        <button onclick="menuDeleteDateGroup()" class="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 border-t border-slate-100 dark:border-slate-700 flex items-center gap-2"><i class="fa-regular fa-trash-can"></i> <span>删除今日笔记</span></button>    
+    </div>
+
+    <div id="note-context-menu" class="hidden fixed bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl py-1.5 w-32 z-[9999] text-xs font-bold text-slate-700 dark:text-slate-200 select-none">
+        <button onclick="menuRenameNote()" class="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"><i class="fa-regular fa-pen-to-square text-blue-500"></i> <span>重命名</span></button>
+        <button onclick="menuDeleteNote()" class="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 border-t border-slate-100 dark:border-slate-700 flex items-center gap-2"><i class="fa-regular fa-trash-can"></i> <span>删除笔记</span></button>
+    </div>
+
+    <div id="img-context-menu" class="hidden fixed bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 w-28 z-[9999] text-xs font-bold text-slate-700 dark:text-slate-200 select-none">
+        <button onclick="window.imgMenuAction('download')" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"><i class="fa-solid fa-download text-blue-500"></i> <span data-i18n="img-download">下载</span></button>
+        <button onclick="window.imgMenuAction('copy')" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"><i class="fa-regular fa-copy text-emerald-500"></i> <span data-i18n="img-copy">复制</span></button>
+        <button onclick="window.imgMenuAction('cut')" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 border-b border-slate-100 dark:border-slate-700"><i class="fa-solid fa-scissors text-amber-500"></i> <span data-i18n="img-cut">剪切</span></button>
+        <button onclick="window.imgMenuAction('delete')" class="w-full text-left px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center gap-2"><i class="fa-regular fa-trash-can"></i> <span data-i18n="img-delete">删除</span></button>
+    </div>
+
+    <div id="about-modal" class="hidden fixed inset-0 bg-black/50 z-[99999] flex items-center justify-center p-4 transition-opacity">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-slate-200 dark:border-slate-700">
+            <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                <h3 class="font-black text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2"><i class="fa-solid fa-circle-info text-blue-500"></i> <span data-i18n="about-soft">关于软件</span></h3>
+                <button onclick="closeAboutModal()" class="text-slate-400 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-5 text-sm text-slate-600 dark:text-slate-300 leading-relaxed overflow-y-auto max-h-[60vh]">
+                <p class="mb-3 font-black text-slate-800 dark:text-slate-200 text-xl">芒果记 v2.0</p>
+                <p class="mb-2">基于本地存储的极速 Markdown/富文本双擎笔记本。引入按天自动建档归档逻辑与行数显示轨。</p>
+                <ul class="list-disc pl-5 space-y-1 mb-3">
+                    <li>支持离线使用，无网络限制</li>
+                    <li>支持 Markdown 和富文本排版</li>
+                    <li>支持日期管理</li>
+                    <li>支持丰富的图片管理功能</li>
+                </ul>
+                <p class="text-xs text-slate-400 mt-4 leading-relaxed">
+                    开发者：lele <br>
+                    项目地址：<a href="https://github.com/mangguo02/my-cloud-notepad" target="_blank" class="text-blue-500 hover:underline">点击访问 GitHub 仓库</a> <br>
+                    发布日期：2026年6月
+                </p>
+            </div>
+            <div class="px-5 py-3 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+                <button onclick="closeAboutModal()" class="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg shadow-sm transition-colors text-sm" data-i18n="btn-got-it">我知道了</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // -----------------------------
+        // 1. 字典与语言模块 (保留原汁原味)
+        // -----------------------------
+        const dict = {
+            zh: {
+                'theme-title': '主题模式', 'theme-light': '浅色模式', 'theme-dark': '深色模式', 'theme-sys': '跟随系统',
+                'lang-toggle': '切换语言 / EN', 'app-title': '芒果记',
+                'btn-new-note': '新建', 'btn-new-folder': '自定义日期',
+                'label-editor': '编辑栏', 'trash-title': '回收站', 'trash-empty': '回收站空空如也',
+                'fmt-size': '字号', 'sz-1': '1号 (10px)', 'sz-2': '2号 (13px)', 'sz-3': '3号 (16px)', 'sz-4': '4号 (18px)', 'sz-5': '5号 (24px)', 'sz-6': '6号 (32px)', 'sz-7': '7号 (48px)',
+                'fmt-heading': '标题', 'h1': '一级标题', 'h2': '二级标题', 'h3': '三级标题', 'p': '正文',
+                'color-white': '白', 'color-red': '红', 'color-yellow': '黄', 'color-blue': '蓝', 'color-green': '绿', 'color-black': '黑',
+                'fmt-img': '图', 'btn-recover': '恢复', 'btn-empty': '清空', 'about-soft': '关于软件',
+                'title-align-left': '左对齐', 'title-align-center': '居中对齐', 'title-align-right': '右对齐', 'title-align-full': '两端对齐',
+                'search-placeholder': '搜索...', 'note-title-placeholder': '此处输入新随笔标题...', 'note-content-placeholder': '在这里直接排版书写，试试输入 # 加空格...',
+                'img-download': '下载', 'img-copy': '复制', 'img-cut': '剪切', 'img-delete': '删除', 'btn-got-it': '我知道了',
+                'title-import-export': '导入导出', 'title-settings': '设置', 'title-history': '历史', 'title-ul': '无序列表', 'title-ol': '有序列表', 'title-code': '代码', 'title-clear': '清除格式', 'title-img': '插入图片', 'title-outdent': '减少缩进', 'title-indent': '增加缩进'
+            },
+            en: {
+                'theme-title': 'Theme', 'theme-light': 'Light', 'theme-dark': 'Dark', 'theme-sys': 'System',
+                'lang-toggle': 'Lang / 中文', 'app-title': 'Local Note',
+                'btn-new-note': 'New', 'btn-new-folder': 'Custom Date',
+                'label-editor': 'Editor', 'trash-title': 'Trash', 'trash-empty': 'Trash is empty',
+                'fmt-size': 'Size', 'sz-1': 'Sz 1 (10px)', 'sz-2': 'Sz 2 (13px)', 'sz-3': 'Sz 3 (16px)', 'sz-4': 'Sz 4 (18px)', 'sz-5': 'Sz 5 (24px)', 'sz-6': 'Sz 6 (32px)', 'sz-7': 'Sz 7 (48px)',
+                'fmt-heading': 'Heading', 'h1': 'Heading 1', 'h2': 'Heading 2', 'h3': 'Heading 3', 'p': 'Normal Text',
+                'color-white': 'W', 'color-red': 'R', 'color-yellow': 'Y', 'color-blue': 'B', 'color-green': 'G', 'color-black': 'Bk',
+                'fmt-img': 'Img', 'btn-recover': 'Restore', 'btn-empty': 'Empty', 'about-soft': 'About',
+                'title-align-left': 'Left', 'title-align-center': 'Center', 'title-align-right': 'Right', 'title-align-full': 'Justify',
+                'search-placeholder': 'Search...', 'note-title-placeholder': 'Enter new title here...', 'note-content-placeholder': 'Start writing here, try typing # then space...',
+                'img-download': 'Download', 'img-copy': 'Copy', 'img-cut': 'Cut', 'img-delete': 'Delete', 'btn-got-it': 'Got it',
+                'title-import-export': 'Import/Export', 'title-settings': 'Settings', 'title-history': 'History', 'title-ul': 'Bullet', 'title-ol': 'Numbered', 'title-code': 'Code', 'title-clear': 'Clear', 'title-img': 'Insert Image', 'title-outdent': 'Outdent', 'title-indent': 'Indent'
+            }
+        };
+
+        let currentLang = localStorage.getItem('app-lang') || 'zh';
+        function t(key) { return dict[currentLang][key] || key; }
+        function toggleLanguage() { currentLang = currentLang === 'zh' ? 'en' : 'zh'; localStorage.setItem('app-lang', currentLang); updateLanguageUI(); renderDateTreeMenu(); }
+        function updateLanguageUI() {
+            const currentDict = dict[currentLang];
+            document.querySelectorAll('[data-i18n]').forEach(el => { const key = el.getAttribute('data-i18n'); if (currentDict[key]) el.innerText = currentDict[key]; });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { const key = el.getAttribute('data-i18n-placeholder'); if (currentDict[key]) el.placeholder = currentDict[key]; });
+            document.querySelectorAll('[data-i18n-title]').forEach(el => { const key = el.getAttribute('data-i18n-title'); if (currentDict[key]) el.title = currentDict[key]; });
+        }
+
+        function showAboutModal() { document.getElementById('about-modal').classList.remove('hidden'); }
+        function closeAboutModal() { document.getElementById('about-modal').classList.add('hidden'); }
+
+        // -----------------------------
+        // 2. 菜单浮窗控制逻辑 (保持原样)
+        // -----------------------------
+        function toggleAlignMenu(e) { e.stopPropagation(); document.getElementById('settings-dropdown').classList.add('hidden'); const alignMenu = document.getElementById('align-dropdown-menu'); if (alignMenu.classList.contains('hidden')) { const rect = e.currentTarget.getBoundingClientRect(); alignMenu.style.top = (rect.bottom + 4) + 'px'; alignMenu.style.left = rect.left + 'px'; alignMenu.classList.remove('hidden'); } else { alignMenu.classList.add('hidden'); } }
+        function toggleColorMenu(e) { 
+            e.stopPropagation(); 
+            const colorMenu = document.getElementById('color-dropdown-menu'); 
+            if (colorMenu.classList.contains('hidden')) { 
+                const rect = e.currentTarget.getBoundingClientRect(); 
+                colorMenu.style.top = (rect.bottom + 4) + 'px'; 
+                colorMenu.style.left = rect.left + 'px'; 
+                colorMenu.classList.remove('hidden'); 
+            } else { 
+                colorMenu.classList.add('hidden'); 
+            } 
+        }
+        function toggleSettingsMenu(e) { 
+            e.stopPropagation(); 
+            const dropdown = document.getElementById('settings-dropdown'); 
+            if (dropdown.classList.contains('hidden')) { 
+                const rect = e.currentTarget.getBoundingClientRect(); 
+                dropdown.style.top = (rect.bottom + 4) + 'px'; 
+                let leftPos = rect.right - 176; if(leftPos < 0) leftPos = 4; 
+                dropdown.style.left = leftPos + 'px'; 
+                dropdown.classList.remove('hidden'); 
+            } else { 
+                dropdown.classList.add('hidden'); 
+            } 
+        }
+        function toggleImportExport(e) { e.stopPropagation(); document.getElementById('settings-dropdown').classList.add('hidden'); const content = document.getElementById('import-export-content'); const arrow = document.getElementById('import-export-arrow'); if (content.classList.contains('hidden')) { const rect = e.currentTarget.getBoundingClientRect(); content.style.top = (rect.bottom + 4) + 'px'; content.style.left = rect.left + 'px'; content.classList.remove('hidden'); if(arrow) arrow.classList.add('rotate-180'); } else { content.classList.add('hidden'); if(arrow) arrow.classList.remove('rotate-180'); } }
+        
+        document.addEventListener('click', (e) => {
+            const settingsDropdown = document.getElementById('settings-dropdown'); if (settingsDropdown && !settingsDropdown.contains(e.target)) settingsDropdown.classList.add('hidden');
+            const ieDropdown = document.getElementById('import-export-content'); const ieWrap = document.getElementById('btn-import-export-wrap'); if (ieDropdown && (!ieWrap || !ieWrap.contains(e.target)) && !e.target.closest('#import-export-content')) { ieDropdown.classList.add('hidden'); const arrow = document.getElementById('import-export-arrow'); if(arrow) arrow.classList.remove('rotate-180'); }
+            const colorMenu = document.getElementById('color-dropdown-menu'); if (colorMenu && !colorMenu.contains(e.target)) colorMenu.classList.add('hidden');  
+            const dateMenu = document.getElementById('date-context-menu'); if (dateMenu && !dateMenu.contains(e.target)) dateMenu.classList.add('hidden');
+            const noteMenu = document.getElementById('note-context-menu'); if (noteMenu && !noteMenu.contains(e.target)) noteMenu.classList.add('hidden');   
+            const imgMenu = document.getElementById('img-context-menu'); if (imgMenu && !imgMenu.contains(e.target)) imgMenu.classList.add('hidden');
+        }, true);
+
+        function setTheme(theme) { localStorage.setItem('app-theme', theme); applyTheme(theme); }
+        function applyTheme(theme) { const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches); if (isDark) { document.documentElement.classList.add('dark'); } else { document.documentElement.classList.remove('dark'); } }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (localStorage.getItem('app-theme') === 'system' || !localStorage.getItem('app-theme')) applyTheme('system'); });
+
+        // -----------------------------
+        // 3. 核心系统状态与本地存储 (支持日期建档)
+        // -----------------------------
+        let notes = [];
+        let trashBin = [];
+        let dateMetadata = {}; 
+        let activeNoteId = null;
+        let saveTimeout = null;
+        let draggedNoteId = null;
+        let leftPanelClosed = false;
+        let rightPanelClosed = true;
+        let isDateDescending = true;
+        let isLineNumberVisible = true;
+        let currentMenuDateStr = null;
+        let savedEditorRange = null; // 💡 新增：用于记录正文的选中状态
+
+
+        function getDateStr(timestamp) {
+            const d = new Date(timestamp);
+            const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.innerWidth < 768) toggleLeftPanel();
+            initResizers();
+            initRichTextInteractiveEvents();
+            initSyncScroll();
+            // 💡 新增：只要鼠标在编辑器里选中文本，就立刻把范围存入备忘录
+            document.addEventListener('selectionchange', () => {
+                    const sel = window.getSelection();
+                    if (sel.rangeCount > 0) {
+                        const editor = document.getElementById('note-editor-richtext');
+                        const range = sel.getRangeAt(0);
+                        // 确保选中的确实是编辑器里面的内容
+                        if (editor && editor.contains(range.commonAncestorContainer)) {
+                            savedEditorRange = range.cloneRange();
+                        }
+                     }
+            });
+            
+            document.getElementById('note-title-input').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') { e.preventDefault(); document.getElementById('note-editor-richtext').focus(); }
+            });
+            document.addEventListener('keydown', function(e) {
+                if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); toggleFindReplacePanel(); }
+            });
+
+            applyTheme(localStorage.getItem('app-theme') || 'system');
+            updateLanguageUI();
+            MobileDragDrop.polyfill({ holdToDrag: 300, forceApply: true });
+            
+            // 直接读取本地缓存，无需登录
+            loadLocalData();
+        });
+
+        async function loadLocalData() {
+            if (typeof marked !== 'undefined') marked.use({ breaks: true, gfm: true });
+            try {
+                let data = await localforage.getItem(`LocalNotes_DateCore_Pro_V1`);
+                if (data) {
+                    if (data.notes) notes = data.notes;
+                    if (data.trashBin) trashBin = data.trashBin;
+                    if (data.dateMetadata) dateMetadata = data.dateMetadata;
+                }
+                
+                if (notes.length === 0) {
+                    const today = getDateStr(Date.now());
+                    notes.push({
+                        id: 'md_' + Date.now(),
+                        title: '🚀 本地记事本操作说明',
+                        content: '欢迎使用！<br>• 左侧全自动按生成当天的日期归类。<br>• 中间的图标工具完备可用，插入图片支持缩放与安全锁。<br>• 快捷键 `Ctrl+F` 或点击查找按钮唤醒高亮替换区。<br>• 回收站保留您的历史痕迹。',
+                        dateStr: today, updatedAt: Date.now()
+                    });
+                }
+                
+                refreshAllViews();
+                
+                if (notes.length > 0) {
+                    const sorted = [...notes].sort((a,b) => b.updatedAt - a.updatedAt);
+                    openNote(sorted[0].id);
+                } else {
+                    createNewNoteByDate(getDateStr(Date.now()));
+                }
+            } catch (error) {
+                console.error("加载本地失败", error);
+            }
+        }
+
+        async function saveLocalData() {
+            const allData = { notes, trashBin, dateMetadata };
+            try { await localforage.setItem(`LocalNotes_DateCore_Pro_V1`, allData); } catch (error) {}
+        }
+
+        function refreshAllViews() {
+            renderDateTreeMenu();
+            renderTrashBin();
+            document.getElementById('trash-count-badge').innerText = trashBin.length;
+            updateLanguageUI();
+        }
+
+        // -----------------------------
+        // 4. 左侧侧栏：完全重构为日期自动分类逻辑
+        // -----------------------------
+        function createTopNote() {
+            const input = document.getElementById('top-quick-title');
+            const t = input.value.trim();
+            const newDoc = { id: 'md_' + Date.now(), title: t, content: '', dateStr: getDateStr(Date.now()), updatedAt: Date.now() };
+            notes.unshift(newDoc); input.value = ''; saveLocalData(); openNote(newDoc.id);
+        }
+
+        function createNewNoteByDate(dateStr) {
+            const newDoc = { id: 'md_' + Date.now(), title: '', content: '', dateStr: dateStr, updatedAt: Date.now() };
+            notes.unshift(newDoc); saveLocalData(); openNote(newDoc.id);
+        }
+
+        // 借助原版“新分类”按扭，允许用户自定义建立未来/过去的日期归档
+        function createNewDateFolder() {
+            const defaultDate = getDateStr(Date.now());
+            const d = prompt("请输入您要归档的自定义日期 (格式如 2026-06-20):", defaultDate);
+            if(d && d.trim()) { createNewNoteByDate(d.trim()); }
+        }
+
+        function toggleDateOrder() {
+            isDateDescending = !isDateDescending;
+            document.getElementById('order-btn').innerHTML = isDateDescending ? `<i class="fa-solid fa-arrow-down-9-1"></i> 倒序` : `<i class="fa-solid fa-arrow-up-1-9"></i> 正序`;
+            renderDateTreeMenu();
+        }
+
+        function renderDateTreeMenu() {
+            const container = document.getElementById('date-tree-container'); container.innerHTML = '';
+            const keyword = document.getElementById('left-search-input').value.trim().toLowerCase();
+            const globalSearch = document.getElementById('global-search-input');
+            const gKeyword = globalSearch ? globalSearch.value.trim().toLowerCase() : '';
+            
+            let finalKeyword = keyword || gKeyword;
+            let displayNotes = notes;
+            if(finalKeyword) {
+                displayNotes = notes.filter(n => (n.title||'').toLowerCase().includes(finalKeyword) || (n.content||'').toLowerCase().includes(finalKeyword));
             }
 
-            // 💡 策略二：如果缓存没有，去网络请求
-            return fetch(e.request).then(networkResponse => {
-                // 确保请求成功，且是合法请求（包含普通的 CDN 跨域请求）
-                if (!networkResponse || networkResponse.status !== 200 || (networkResponse.type !== 'basic' && networkResponse.type !== 'cors')) {
-                    return networkResponse;
-                }
+            let groupMap = {};
+            displayNotes.forEach(n => {
+                if(!groupMap[n.dateStr]) groupMap[n.dateStr] = [];
+                groupMap[n.dateStr].push(n);
+            });
 
-                // 【融合优势】动态收集：把刚从网上成功拉取的新文件（比如 Tailwind 样式库），克隆一份存进缓存里
-                const responseToCache = networkResponse.clone();
-                caches.open(CACHE_NAME).then(cache => {
-                    cache.put(e.request, responseToCache);
+            let sortedDates = Object.keys(groupMap).sort((a,b) => isDateDescending ? b.localeCompare(a) : a.localeCompare(b));
+            if(sortedDates.length === 0) { container.innerHTML = `<p class="text-slate-400 text-center text-[11px] py-4 font-bold">无匹配数据</p>`; return; }
+
+            sortedDates.forEach(dStr => {
+                if(!dateMetadata[dStr]) dateMetadata[dStr] = { comment: '', collapsed: false };
+                const meta = dateMetadata[dStr];
+
+                const groupDiv = document.createElement('div');
+                groupDiv.className = "bg-white dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm";
+                
+                const head = document.createElement('div');
+                head.className = "p-1 bg-slate-100/70 dark:bg-slate-900/40 flex items-center justify-between cursor-pointer hover:bg-slate-200/50 transition-colors date-drop-target";
+                head.onclick = () => { meta.collapsed = !meta.collapsed; saveLocalData(); renderDateTreeMenu(); };
+                
+                // 允许拖拽笔记改变日期
+                head.addEventListener('dragover', (e) => { e.preventDefault(); head.classList.add('bg-blue-100', 'dark:bg-blue-900'); });
+                head.addEventListener('dragleave', () => { head.classList.remove('bg-blue-100', 'dark:bg-blue-900'); });
+                head.addEventListener('drop', (e) => {
+                    e.preventDefault(); head.classList.remove('bg-blue-100', 'dark:bg-blue-900');
+                    if(draggedNoteId) {
+                        const idx = notes.findIndex(n => n.id === draggedNoteId);
+                        if(idx !== -1 && notes[idx].dateStr !== dStr) { notes[idx].dateStr = dStr; saveLocalData(); renderDateTreeMenu(); }
+                    }
                 });
 
-                return networkResponse;
-            }).catch(() => {
-                // 断网且没缓存时的兜底（可以在这里加个断网提示页）
-                console.log('网络不可用，且未命中缓存:', e.request.url);
+                const leftArea = document.createElement('div');
+                // 1. 缩小一点点字号 (10px)，加紧字间距 (tracking-tighter)，缩小图标间距 (gap-0.5)
+                leftArea.className = "flex items-center gap-0.5 font-black text-[16px] text-slate-700 dark:text-slate-200 truncate flex-1 tracking-tighter";
+                const caret = meta.collapsed ? "fa-caret-right" : "fa-caret-down";
+                
+                // 2. 将 2026-06-19 精简为 26/06/19 格式，省出大量空间
+                const shortDate = dStr.substring(2).replace(/-/g, '/'); 
+                
+                leftArea.innerHTML = `
+                    <i class="fa-solid ${caret} text-slate-400 w-2.5"></i>
+                    <span>${shortDate}</span>
+                    ${meta.comment ? `<span class="text-[8px] font-normal text-amber-700 bg-amber-100 dark:bg-amber-900/50 dark:text-amber-300 px-0.5 rounded truncate max-w-[40px] ml-0.5 tracking-normal">${meta.comment}</span>` : ''}
+                `;
+
+                const rightActions = document.createElement('div');
+                rightActions.className = "flex items-center gap-0.5 shrink-0";
+                
+                const plus = document.createElement('button');
+                plus.className = "text-emerald-500 hover:text-emerald-600 font-bold p-0.5";
+                plus.innerHTML = `<i class="fa-solid fa-circle-plus text-base"></i>`;
+                plus.onclick = (e) => { e.stopPropagation(); createNewNoteByDate(dStr); };
+
+                const more = document.createElement('button');
+                more.className = "text-slate-400 hover:text-slate-600 px-0.5";
+                more.innerHTML = `<i class="fa-solid fa-ellipsis-vertical"></i>`;
+                more.onclick = (e) => {
+                    e.stopPropagation(); currentMenuDateStr = dStr;
+                    const menu = document.getElementById('date-context-menu');
+                    menu.classList.remove('hidden'); menu.style.top = `${e.clientY+5}px`; menu.style.left = `${e.clientX-80}px`;
+                };
+
+                rightActions.appendChild(plus); rightActions.appendChild(more);
+                head.appendChild(leftArea); head.appendChild(rightActions);
+                groupDiv.appendChild(head);
+
+                if(!meta.collapsed) {
+                    const listContainer = document.createElement('div');
+                    listContainer.className = "p-1 space-y-0.5 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700";
+                    groupMap[dStr].forEach(note => {
+                        const isSelected = note.id === activeNoteId;
+                        const item = document.createElement('div');
+                        item.className = `px-1 py-0.5 rounded-lg text-[16px] cursor-pointer truncate flex items-center justify-between group transition-all ${isSelected ? 'bg-blue-600 text-white font-black shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`;
+                        item.innerHTML = `
+                            <div class="flex items-center gap-1 truncate flex-1 pr-1">
+                                <i class="fa-regular fa-file-lines opacity-60"></i>
+                                <span class="truncate">${(note.title && note.title.trim() !== '') ? note.title : (note.content ? note.content.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim().substring(0, 10) || '无标题' : '无标题')}</span>
+                            </div>
+                            <button class="opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40 px-1 py-0.5 rounded transition-all flex items-center justify-center" onclick="event.stopPropagation(); deleteNote('${note.id}');"><i class="fa-solid fa-trash-can" style="font-size: 11px; transform: scale(0.85);"></i></button>
+                        `;
+                        item.onclick = () => openNote(note.id);
+                        
+                        // 允许笔记自身被拖拽转移时间
+                        item.setAttribute('draggable', 'true');
+                        item.addEventListener('dragstart', (e) => { draggedNoteId = note.id; e.dataTransfer.effectAllowed = 'move'; setTimeout(()=>item.classList.add('opacity-40'),0); });
+                        item.addEventListener('dragend', () => { draggedNoteId = null; item.classList.remove('opacity-40'); });
+
+                        listContainer.appendChild(item);
+                    });
+                    groupDiv.appendChild(listContainer);
+                }
+                container.appendChild(groupDiv);
             });
-        })
-    );
-});
+        }
+
+        function menuAddDateComment() {
+            if(!currentMenuDateStr) return;
+            const oldVal = dateMetadata[currentMenuDateStr].comment || '';
+            const res = prompt(`为日期归档 [${currentMenuDateStr}] 附加备注内容:`, oldVal);
+            if(res !== null) { dateMetadata[currentMenuDateStr].comment = res.trim(); saveLocalData(); renderDateTreeMenu(); }
+            document.getElementById('date-context-menu').classList.add('hidden');
+        }
+
+        function menuDeleteDateGroup() {
+            if(!currentMenuDateStr) return;
+            if(confirm(`⚠️ 您确定要彻底销毁 [${currentMenuDateStr}] 这一天名下的全部记事本吗？此动作会使相关文档全部进入回收站。`)) {
+                const toTrash = notes.filter(n => n.dateStr === currentMenuDateStr);
+                trashBin.push(...toTrash);
+                notes = notes.filter(n => n.dateStr !== currentMenuDateStr);
+                delete dateMetadata[currentMenuDateStr];
+                saveLocalData();
+                if(notes.length > 0) openNote(notes[0].id); else createNewNoteByDate(getDateStr(Date.now()));
+            }
+            document.getElementById('date-context-menu').classList.add('hidden');
+        }
+
+        function openNote(id) {
+            activeNoteId = id; const target = notes.find(n => n.id === id);
+            if (target) {
+                const titleInput = document.getElementById('note-title-input');
+                if (titleInput) titleInput.value = target.title || '';
+                document.getElementById('note-editor-richtext').innerHTML = target.content;
+                renderDateTreeMenu();
+                updateLineNumbersCounter();
+            }
+        }
+
+        // -----------------------------
+        // 5. 编辑器输入与行数同步算法
+        // -----------------------------
+        function handleEditorInput() { 
+            if (!activeNoteId) return; 
+            const idx = notes.findIndex(n => n.id === activeNoteId);
+            if (idx !== -1) {
+                const titleInput = document.getElementById('note-title-input');
+                if (titleInput) notes[idx].title = titleInput.value;
+                notes[idx].content = document.getElementById('note-editor-richtext').innerHTML;
+            }
+            updateLineNumbersCounter();
+            renderDateTreeMenu(); 
+            if (saveTimeout) clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                const idx2 = notes.findIndex(n => n.id === activeNoteId);
+                if (idx2 !== -1) notes[idx2].updatedAt = Date.now(); 
+                saveLocalData(); 
+            }, 1000); 
+        }
+
+        function updateLineNumbersCounter() {
+            if(!isLineNumberVisible) return;
+            const editor = document.getElementById('note-editor-richtext');
+            const track = document.getElementById('line-numbers-container');
+            // 计算富文本元素的真实高度来推断行数（基于24px精准行高）
+            const totalHeight = Math.max(24, editor.scrollHeight);
+            const lineCount = Math.max(1, Math.floor(totalHeight / 24));
+            
+            let nodesHtml = '';
+            for(let i=1; i<=lineCount; i++) {
+                nodesHtml += `<div>${i}</div>`;
+            }
+            track.innerHTML = nodesHtml;
+        }
+
+        function toggleLineVisibility() {
+            isLineNumberVisible = !isLineNumberVisible;
+            const rail = document.getElementById('line-counter-rail');
+            const icon = document.getElementById('line-toggle-icon');
+            if(isLineNumberVisible) {
+                rail.style.width = '32px';
+                icon.className = "fa-solid fa-eye text-[12px] text-emerald-500";
+                setTimeout(updateLineNumbersCounter, 50);
+            } else {
+                rail.style.width = '12px';
+                icon.className = "fa-solid fa-eye-slash text-[12px] text-slate-400";
+                document.getElementById('line-numbers-container').innerHTML = '';
+            }
+        }
+
+        function initSyncScroll() {
+            const container = document.getElementById('editor-scroll-container');
+            const rail = document.getElementById('line-numbers-container');
+            container.addEventListener('scroll', () => {
+                rail.scrollTop = container.scrollTop;
+            });
+        }
+
+        // -----------------------------
+        // 6. 查找与替换增强版
+        // -----------------------------
+        function toggleFindReplacePanel() {
+            const bar = document.getElementById('find-replace-bar');
+            bar.classList.toggle('hidden');
+            if(!bar.classList.contains('hidden')) {
+                document.getElementById('find-text-input').focus();
+            }
+        }
+
+        function executeFindText() {
+            const str = document.getElementById('find-text-input').value;
+            if(!str) return;
+            if(!window.find(str, false, false, true, false, true, false)) { alert(`未找到: "${str}"`); }
+        }
+
+        function executeReplaceText(isAll) {
+            const fStr = document.getElementById('find-text-input').value;
+            const rStr = document.getElementById('replace-text-input').value;
+            if(!fStr) return;
+            if(isAll) {
+                const editor = document.getElementById('note-editor-richtext');
+                const escaped = fStr.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                editor.innerHTML = editor.innerHTML.replace(new RegExp(escaped, 'g'), rStr);
+                handleEditorInput();
+                alert("已全部替换完成");
+            } else {
+                if(window.find(fStr, false, false, true, false, true, false)) {
+                    execCmd('insertHTML', rStr);
+                }
+            }
+        }
+
+        // -----------------------------
+        // 7. 富文本核心、图片交互、拖拽缩放 (保留原版100%)
+        // -----------------------------
+        function execCmd(command, value = null) { document.execCommand(command, false, value); handleEditorInput(); }
+        // 💡 新增：修改字号并自动恢复焦点的高级函数
+        function changeFontSizeAndRestore(selectElem) {
+               const val = selectElem.value;
+               if (!val) return;
+
+               const editor = document.getElementById('note-editor-richtext');
+               editor.focus(); // 先强行把焦点拉回编辑器
+
+               // 如果备忘录里有之前选中的范围，立即恢复它的高亮状态
+               if (savedEditorRange) {
+                   const sel = window.getSelection();
+                   sel.removeAllRanges();
+                   sel.addRange(savedEditorRange);
+               }
+
+               // 恢复高亮后，再执行改变字号的命令
+               execCmd('fontSize', val);
+
+               // 改完后，把下拉框重置为默认的“字号”状态，方便下一次继续选择
+               selectElem.value = "";
+        }
+        function clearAllFormat() { document.execCommand('removeFormat', false, null); document.execCommand('formatBlock', false, '<div>'); document.execCommand('backColor', false, 'transparent'); handleEditorInput(); }
+        function wrapHTML(startTag, endTag) { const selection = window.getSelection(); if (!selection.rangeCount) return; execCmd('insertHTML', startTag + selection.toString() + endTag); }
+
+        window.toggleImgLock = function(btn, e) {
+            if(e) e.stopPropagation();
+            const wrapper = btn.closest('.custom-img-wrapper'); const icon = btn.querySelector('i');
+            if (wrapper.classList.contains('locked')) { wrapper.classList.remove('locked'); btn.classList.remove('locked'); icon.className = 'fa-solid fa-lock-open'; } 
+            else { wrapper.classList.add('locked'); btn.classList.add('locked'); icon.className = 'fa-solid fa-lock'; }
+            handleEditorInput();
+        };
+
+        window.imgDragStart = function(e) { e.target.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'custom-img-wrapper'); window.draggingImageNode = e.target; };
+        window.imgDragEnd = function(e) { e.target.classList.remove('dragging'); window.draggingImageNode = null; handleEditorInput(); };
+
+        let currentImageWrapper = null;
+        window.showImgContextMenu = function(e, wrapper) { currentImageWrapper = wrapper; const menu = document.getElementById('img-context-menu'); menu.classList.remove('hidden'); menu.style.left = e.clientX + 'px'; menu.style.top = e.clientY + 'px'; };
+
+        window.imgMenuAction = async function(action) {
+            const menu = document.getElementById('img-context-menu'); menu.classList.add('hidden');
+            if (!currentImageWrapper) return;
+            const img = currentImageWrapper.querySelector('img');
+            
+            const writeToClipboard = () => {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth || img.width; canvas.height = img.naturalHeight || img.height;
+                        const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0);
+                        canvas.toBlob(async (blob) => { if (!blob) throw new Error('Blob'); await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); resolve(); }, 'image/png');
+                    } catch (err) { reject(err); }
+                });
+            };
+
+            if (action === 'download') { const a = document.createElement('a'); a.href = img.src; a.download = 'image_' + Date.now() + '.jpg'; a.click(); } 
+            else if (action === 'copy') { try { await writeToClipboard(); } catch(err){} } 
+            else if (action === 'cut') { try { await writeToClipboard(); currentImageWrapper.remove(); handleEditorInput(); } catch(err){} } 
+            else if (action === 'delete') { currentImageWrapper.remove(); handleEditorInput(); }
+            currentImageWrapper = null;
+        };
+
+        function initRichTextInteractiveEvents() {
+            let activeImage = null; let startY = 0; let startX = 0; let startWidth = 0; let startRatio = 1;
+            const editor = document.getElementById('note-editor-richtext');
+            
+            editor.addEventListener('click', (e) => {
+                if (e.target.tagName === 'A' && (e.ctrlKey || e.metaKey)) window.open(e.target.href, '_blank');
+                const lockBtn = e.target.closest('.img-lock-btn');
+                if (lockBtn) { e.preventDefault(); e.stopPropagation(); window.toggleImgLock(lockBtn, e); }
+            });
+            editor.addEventListener('contextmenu', (e) => { const wrapper = e.target.closest('.custom-img-wrapper'); if (wrapper) { e.preventDefault(); showImgContextMenu(e, wrapper); } });
+            editor.addEventListener('dblclick', (e) => { const wrapper = e.target.closest('.custom-img-wrapper'); if (wrapper) { e.preventDefault(); showImgContextMenu(e, wrapper); } });
+            
+            editor.addEventListener('dragover', (e) => { if (window.draggingImageNode) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } });
+            editor.addEventListener('drop', (e) => {
+                if (window.draggingImageNode) {
+                    e.preventDefault(); let range = null;
+                    if (document.caretRangeFromPoint) { range = document.caretRangeFromPoint(e.clientX, e.clientY); } 
+                    else if (document.caretPositionFromPoint) { const pos = document.caretPositionFromPoint(e.clientX, e.clientY); range = document.createRange(); range.setStart(pos.offsetNode, pos.offset); }
+                    if (range) { window.draggingImageNode.remove(); range.insertNode(window.draggingImageNode); const space = document.createTextNode('\u00A0'); range.collapse(false); range.insertNode(space); }
+                    window.draggingImageNode = null; handleEditorInput();
+                }
+            });
+
+            const getClientY = (e) => { return e.touches ? e.touches[0].clientY : e.clientY; };
+            const getClientX = (e) => { return e.touches ? e.touches[0].clientX : e.clientX; };
+
+            const startResize = (e) => {
+                if (e.target.tagName === 'IMG' && !e.target.closest('.locked')) {
+                    if(e.touches) { e.stopPropagation(); } else { e.preventDefault(); }
+                    activeImage = e.target; startY = getClientY(e); startX = getClientX(e);
+                    startWidth = activeImage.clientWidth || activeImage.offsetWidth;
+                    const startHeight = activeImage.clientHeight || activeImage.offsetHeight;
+                    startRatio = startWidth / startHeight;
+                    if (!e.touches) document.body.style.cursor = 'nwse-resize';
+                    if (e.touches) { document.addEventListener('touchmove', resizeImg, { passive: false }); document.addEventListener('touchend', stopResizeImg); } 
+                    else { document.addEventListener('mousemove', resizeImg); document.addEventListener('mouseup', stopResizeImg); }
+                }
+            };
+            editor.addEventListener('mousedown', startResize); editor.addEventListener('touchstart', startResize, { passive: false });
+
+            function resizeImg(e) {
+                if (activeImage) {
+                    if (e.touches) { if (e.cancelable) e.preventDefault(); }
+                    const dy = getClientY(e) - startY; const dx = getClientX(e) - startX;
+                    const deltaWidth = Math.abs(dx) > Math.abs(dy) ? dx : (dy * startRatio);
+                    activeImage.style.width = Math.max(30, startWidth + deltaWidth) + 'px'; activeImage.style.height = 'auto';
+                }
+            }
+            function stopResizeImg() {
+                activeImage = null; document.body.style.cursor = 'default';
+                document.removeEventListener('mousemove', resizeImg); document.removeEventListener('mouseup', stopResizeImg);
+                document.removeEventListener('touchmove', resizeImg); document.removeEventListener('touchend', stopResizeImg);
+                handleEditorInput();
+            }
+
+            editor.addEventListener('paste', (e) => {
+                const items = (e.clipboardData || window.clipboardData).items;
+                let imageFile = null;
+                for (let i = 0; i < items.length; i++) { if (items[i].type.indexOf("image") !== -1) { imageFile = items[i].getAsFile(); break; } }
+                if (imageFile) {
+                    e.preventDefault();
+                    const selection = window.getSelection();
+                    if (!selection.rangeCount) return;
+                    const savedRange = selection.getRangeAt(0).cloneRange();
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        selection.removeAllRanges(); selection.addRange(savedRange);
+                        const imgHTML = `<div style="text-align: left;">&#8203;<span class="custom-img-wrapper locked" contenteditable="false" draggable="true" ondragstart="window.imgDragStart(event)" ondragend="window.imgDragEnd(event)"><img src="${event.target.result}" alt="图片" /><span class="img-lock-btn locked" title="解锁" contenteditable="false"><i class="fa-solid fa-lock"></i></span></span></div><div><br></div>`;
+                        execCmd('insertHTML', imgHTML);
+                    };
+                    reader.readAsDataURL(imageFile);
+                } else {
+                    const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+                    if (text) { e.preventDefault(); document.execCommand('insertText', false, text); }
+                    setTimeout(() => { handleEditorInput(); }, 100);
+                }
+            });
+
+            editor.addEventListener('keyup', function(e) {
+                const sel = window.getSelection();
+                if (!sel.rangeCount || !sel.isCollapsed) return;
+                let node = sel.anchorNode; let el = node.nodeType === 3 ? node.parentNode : node;
+                
+                if (e.key === 'Enter') {
+                    const heading = el.closest('h1, h2, h3, blockquote');
+                    if (heading && heading.textContent.trim() === '') {
+                        e.preventDefault(); document.execCommand('formatBlock', false, '<div>'); document.execCommand('removeFormat', false, null);
+                    }
+                    updateLineNumbersCounter(); return; 
+                }
+                if (e.key === ' ' || e.code === 'Space') {
+                    if (node.nodeType === 3) {
+                        const text = node.textContent; const match = text.match(/^(#{1,3}|-|\*|1\.|>)\s$/);
+                        if (match) {
+                            e.preventDefault(); const trigger = match[1]; node.textContent = '\u200B';
+                            const newRange = document.createRange(); newRange.setStart(node, 1); newRange.collapse(true);
+                            sel.removeAllRanges(); sel.addRange(newRange);
+                            if (trigger === '#') execCmd('formatBlock', '<H1>'); else if (trigger === '##') execCmd('formatBlock', '<H2>'); else if (trigger === '###') execCmd('formatBlock', '<H3>'); else if (trigger === '-' || trigger === '*') execCmd('insertUnorderedList'); else if (trigger === '1.') execCmd('insertOrderedList'); else if (trigger === '>') execCmd('formatBlock', '<BLOCKQUOTE>');
+                        }
+                    }
+                }
+            });
+        }
+
+        function handleLocalImageUpload(event) {
+            const files = event.target.files; if (!files || files.length === 0) return;
+            const editor = document.getElementById('note-editor-richtext'); if (editor) editor.focus();
+            Array.from(files).forEach(file => {
+                if (!file.type.startsWith('image/')) { return; }
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const MAX_WIDTH = 1200; let width = img.width; let height = img.height;
+                        if (width > MAX_WIDTH) { height = Math.round((height * MAX_WIDTH) / width); width = MAX_WIDTH; }
+                        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+                        const ctx = canvas.getContext('2d'); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0, width, height);
+                        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.9);
+                        const imgHTML = `<div style="text-align: left;">&#8203;<span class="custom-img-wrapper locked" contenteditable="false" draggable="true" ondragstart="window.imgDragStart(event)" ondragend="window.imgDragEnd(event)"><img src="${compressedBase64}" alt="图片" /><span class="img-lock-btn locked" title="点击解锁" contenteditable="false"><i class="fa-solid fa-lock"></i></span></span></div><div><br></div>`;
+                        execCmd('insertHTML', imgHTML);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+            event.target.value = '';
+        }
+
+        // -----------------------------
+        // 8. 侧栏拖拽与右侧回收站 (保留原版完整性)
+        // -----------------------------
+        function toggleLeftPanel() {
+            leftPanelClosed = !leftPanelClosed;
+            document.getElementById('left-panel').classList.toggle('hidden', leftPanelClosed);
+            document.getElementById('resizer-left').classList.toggle('hidden', leftPanelClosed);
+            const icon = document.getElementById('sidebar-float-icon');
+            if(icon) icon.classList.toggle('rotate-180', leftPanelClosed);
+        }
+        function toggleRightPanel() { rightPanelClosed = !rightPanelClosed; document.getElementById('right-panel').classList.toggle('hidden', rightPanelClosed); renderTrashBin(); }
+
+        function initResizers() {
+            const container = document.getElementById('workspace-container'); 
+            const leftPanel = document.getElementById('left-panel'); const resizerLeft = document.getElementById('resizer-left');
+            const rightPanel = document.getElementById('right-panel'); const resizerRight = document.getElementById('resizer-right');
+            resizerLeft.addEventListener('mousedown', function(e) { e.preventDefault(); resizerLeft.classList.add('resizing'); document.body.classList.add('no-select'); document.addEventListener('mousemove', resizeLeft); document.addEventListener('mouseup', stopResizeLeft); });
+            function resizeLeft(e) { let newWidth = e.clientX - container.getBoundingClientRect().left; if (newWidth >= 110 && newWidth <= 480) leftPanel.style.width = newWidth + 'px'; }
+            function stopResizeLeft() { resizerLeft.classList.remove('resizing'); document.body.classList.remove('no-select'); document.removeEventListener('mousemove', resizeLeft); document.removeEventListener('mouseup', stopResizeLeft); }
+            
+            resizerRight.addEventListener('mousedown', function(e) { e.preventDefault(); resizerRight.classList.add('resizing'); document.body.classList.add('no-select'); document.addEventListener('mousemove', resizeRight); document.addEventListener('mouseup', stopResizeRight); });
+            function resizeRight(e) { let newWidth = container.getBoundingClientRect().right - e.clientX; if (newWidth >= 130 && newWidth <= 480) rightPanel.style.width = newWidth + 'px'; }
+            function stopResizeRight() { resizerRight.classList.remove('resizing'); document.body.classList.remove('no-select'); document.removeEventListener('mousemove', resizeRight); document.removeEventListener('mouseup', stopResizeRight); }
+        }
+        
+        // --- 新增：笔记独立的菜单操作逻辑 ---
+        let currentMenuNoteId = null;
+
+        function showNoteContextMenu(e, id) {
+            e.stopPropagation();
+            currentMenuNoteId = id;
+            const menu = document.getElementById('note-context-menu');
+            menu.classList.remove('hidden');
+            menu.style.top = `${e.clientY + 5}px`;
+            menu.style.left = `${e.clientX - 60}px`;
+        }
+
+        function menuRenameNote() {
+            if(!currentMenuNoteId) return;
+            const targetNote = notes.find(n => n.id === currentMenuNoteId);
+            if(!targetNote) return;
+            const newName = prompt("请输入新的记事本标题:", targetNote.title);
+            if(newName !== null) {
+                targetNote.title = newName.trim();
+                // 细节：如果改名的正好是当前正在编辑的笔记，同步更新上方输入框
+                if(activeNoteId === currentMenuNoteId) {
+                    document.getElementById('note-title-input').value = targetNote.title;
+                }
+                saveLocalData();
+                renderDateTreeMenu();
+            }
+            document.getElementById('note-context-menu').classList.add('hidden');
+        }
+
+        function menuDeleteNote() {
+            if(!currentMenuNoteId) return;
+            if(confirm("确定要将这条记事本移入回收站吗？")) {
+                deleteNote(currentMenuNoteId);
+            }
+            document.getElementById('note-context-menu').classList.add('hidden');
+        }
+        // ------------------------------------
+
+        function confirmDeleteNote(event, id) { event.stopPropagation(); if (confirm("确定要将这条笔记移入回收站吗？")) { deleteNote(id); } }
+        function deleteNote(id) {
+            const idx = notes.findIndex(n => n.id === id); 
+            if (idx !== -1) {
+                trashBin.push(notes.splice(idx, 1)[0]); saveLocalData();
+                if (activeNoteId === id) { if (notes.length > 0) openNote(notes[0].id); else createNewNoteByDate(getDateStr(Date.now())); } else { refreshAllViews(); }
+            }
+        }
+
+        function renderTrashBin() {
+            const container = document.getElementById('right-trash-flow'); container.innerHTML = '';
+            if (rightPanelClosed) return;
+            if (trashBin.length === 0) { container.innerHTML = `<p class="text-center py-8 text-slate-400 text-xs font-bold flex flex-col items-center gap-2"><i class="fa-solid fa-wind text-2xl"></i> 回收站为空</p>`; return; }
+            trashBin.forEach((note) => {
+                const card = document.createElement('div'); card.className = "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-1 px-2 rounded-lg relative group text-xs shadow-sm hover:shadow transition-all mb-1 cursor-pointer";
+                card.onclick = (e) => { if (!e.target.closest('button')) { document.getElementById('note-title-input').value = "[回收站预览] " + (note.title || '无标题'); document.getElementById('note-editor-richtext').innerHTML = note.content; } };
+                card.innerHTML = `
+                    <div class="pr-14 truncate">
+                        <div class="font-bold text-slate-900 dark:text-slate-100 truncate mb-0 text-xs">${(note.title && note.title.trim() !== '') ? note.title : (note.content ? note.content.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim().substring(0, 10) || '无标题' : '无标题')}</div>
+                        <span class="text-[10px] text-slate-500 font-medium">所属日期: ${note.dateStr}</span>
+                    </div>
+                    <div class="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                        <button onclick="recoverDeletedFile('${note.id}'); event.stopPropagation();" title="恢复" class="p-1 bg-emerald-50 text-emerald-600 rounded"><i class="fa-solid fa-rotate-left text-[10px]"></i></button>
+                        <button onclick="permanentlyDeleteFile('${note.id}'); event.stopPropagation();" title="删除" class="p-1 bg-red-50 text-red-600 rounded"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+                    </div>`;
+                container.appendChild(card);
+            });
+        }
+        function recoverAllTrash() { if (trashBin.length > 0 && confirm("确定要恢复全部回收站文档吗？")) { notes.push(...trashBin); trashBin = []; saveLocalData(); refreshAllViews(); } }
+        function clearTrashCompletely() { if (trashBin.length > 0 && confirm("警告：不可挽回！确定清空回收站吗？")) { trashBin = []; saveLocalData(); refreshAllViews(); } }
+        function recoverDeletedFile(id) { const idx = trashBin.findIndex(t => t.id === id); if (idx !== -1) { notes.push(trashBin.splice(idx, 1)[0]); saveLocalData(); refreshAllViews(); } }
+        function permanentlyDeleteFile(id) { if (confirm("永久粉碎不可挽回，是否继续？")) { trashBin = trashBin.filter(t => t.id !== id); saveLocalData(); refreshAllViews(); } }
+
+        // -----------------------------
+        // 9. 导入与导出引擎打包逻辑
+        // -----------------------------
+        function triggerImport(type) { if (type === 'md') document.getElementById('import-md-input').click(); if (type === 'txt') document.getElementById('import-txt-input').click(); }
+       
+       // --- 自动换行开关功能 ---
+        let isWordWrap = true; // 默认开启换行
+        
+        function toggleWordWrap() {
+            isWordWrap = !isWordWrap;
+            const editor = document.getElementById('note-editor-richtext');
+            const btn = document.getElementById('wrap-toggle-btn');
+            
+            if (isWordWrap) {
+                // 开启换行状态 (默认)
+                editor.style.whiteSpace = 'normal';
+                editor.style.overflowX = 'hidden';
+                // 按钮变绿 (激活状态)
+                btn.className = "px-2 py-0.5 ml-1 text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-slate-700 rounded shadow-sm flex items-center gap-1 transition-all";
+            } else {
+                // 关闭换行状态 (出现横向滚动条)
+                editor.style.whiteSpace = 'nowrap';
+                editor.style.overflowX = 'auto';
+                // 按钮变灰 (关闭状态)
+                btn.className = "px-2 py-0.5 ml-1 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 rounded shadow-sm flex items-center gap-1 transition-all";
+            }
+            
+            // 切换换行会导致文字排版高度改变，所以需要重新计算左侧行号
+            setTimeout(updateLineNumbersCounter, 50);
+        }
+
+        // 监听全局点击事件（修复版）
+        document.addEventListener('click', function(event) {
+            const rightPanel = document.getElementById('right-panel');
+            const historyBtn = document.querySelector('[data-i18n-title="title-history"]');
+            
+            // 关键修复：判断历史栏是否处于显示状态（即没有 'hidden' 类名）
+            if (rightPanel && !rightPanel.classList.contains('hidden') && 
+                !rightPanel.contains(event.target) && 
+                (!historyBtn || !historyBtn.contains(event.target))) {
+                
+                toggleRightPanel(); // 触发关闭
+            }
+        });
+
+    </script>
+</body>
+</html>
